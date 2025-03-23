@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Natural Language Database Interaction</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Natural Language Database Interaction</h1>
+        
+        <div class="setup-container">
+            <button id="setup-db">Setup Sample Database</button>
+            <div id="setup-message" class="message"></div>
+        </div>
+        
+        <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <div class="message system">
+                    Hello! I can help you query the database using natural language. Try asking something like:
+                    <ul>
+                        <li>Show me all products in the Electronics category</li>
+                        <li>How many customers are older than 30?</li>
+                        <li>What is the average price of furniture items?</li>
+                        <li>Find customers who spent more than 3000</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="chat-input">
+                <input type="text" id="user-input" placeholder="Ask a question about the database...">
+                <button id="send-button">Send</button>
+            </div>
+        </div>
+        
+        <div class="info-container">
+            <div class="query-info">
+                <h3>MongoDB Query</h3>
+                <pre id="query-display"></pre>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
