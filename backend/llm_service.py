@@ -1,7 +1,7 @@
 import requests
 import json
 import re
-from config import GROQ_API_KEY, GROQ_API_URL, LLAMA_MODEL
+from config import GROQ_API_KEY, GROQ_BASE_URL, LLAMA_MODEL
 from database import get_collection_names, get_collection_schema
 
 def get_db_context():
@@ -14,6 +14,26 @@ def get_db_context():
         context += f"- {collection}: {', '.join(schema)}\n"
     
     return context
+
+def test_groq_auth():
+    """Simple check against Groq models endpoint to validate the API key."""
+    if not GROQ_API_KEY:
+        return {"ok": False, "error": "GROQ_API_KEY is not configured in config.py."}
+
+    token = GROQ_API_KEY.strip().strip('"').strip("'")
+
+    try:
+        models_url = f"{GROQ_BASE_URL}/models"
+        resp = requests.get(models_url, headers={"Authorization": f"Bearer {token}"}, timeout=15)
+        if resp.status_code == 200:
+            return {"ok": True}
+        try:
+            body = resp.json()
+        except Exception:
+            body = {"raw": resp.text[:200]}
+        return {"ok": False, "status": resp.status_code, "details": body}
+    except requests.exceptions.RequestException as e:
+        return {"ok": False, "error": str(e)}
 
 def natural_language_to_query(user_question):
     """
@@ -29,7 +49,7 @@ def natural_language_to_query(user_question):
             "pipeline": [
                 {
                     "$group": {
-                        "_id": null,
+                        "_id": None,
                         "averageAge": { "$avg": "$age" }
                     }
                 }
@@ -65,9 +85,16 @@ Important rules:
 Provide just the valid JSON without any markdown formatting, explanation or additional text.
 """
     
+    # Ensure API key is configured (supports config.py default)
+    if not GROQ_API_KEY:
+        return {"error": "GROQ_API_KEY is not configured in config.py.", "http_status": 400}
+
+    # Normalize API key to avoid common quoting mistakes (e.g., exported with quotes)
+    token = GROQ_API_KEY.strip().strip('"').strip("'")
+
     # Make API call to Groq
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
     
@@ -81,7 +108,19 @@ Provide just the valid JSON without any markdown formatting, explanation or addi
     }
     
     try:
-        response = requests.post(GROQ_API_URL, headers=headers, json=payload)
+        completions_url = f"{GROQ_BASE_URL}/chat/completions"
+        response = requests.post(completions_url, headers=headers, json=payload, timeout=30)
+        # Explicit handling for common auth errors
+        if response.status_code in (401, 403):
+            try:
+                body = response.json()
+            except Exception:
+                body = {"raw": response.text[:200]}
+            return {
+                "error": f"Groq API authentication failed (status {response.status_code}).",
+                "details": body,
+                "http_status": response.status_code
+            }
         response.raise_for_status()
         
         result = response.json()
@@ -157,7 +196,7 @@ Provide just the valid JSON without any markdown formatting, explanation or addi
                 "pipeline": [
                     {
                         "$group": {
-                            "_id": null, 
+                            "_id": None, 
                             "averageAge": { "$avg": "$age" }
                         }
                     }

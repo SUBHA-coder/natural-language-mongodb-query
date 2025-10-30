@@ -1,10 +1,18 @@
-# Configuration settings for the application
+import os
+
+# Load variables from .env if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 # MongoDB settings
-MONGO_URI = "mongodb://localhost:27017/"
-MONGO_DB = "sample_database"
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_DB = os.getenv("MONGO_DB", "sample_database")
 
 # Groq API settings
-GROQ_API_KEY = "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"  # Replace with your actual Groq API key
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-LLAMA_MODEL = "llama3-70b-8192"  # Use appropriate model name available on Groq
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+# Use a single base URL; specific endpoints are built from this
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+LLAMA_MODEL = os.getenv("LLAMA_MODEL", "llama-3.3-70b-versatile")

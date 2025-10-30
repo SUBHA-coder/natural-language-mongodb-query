@@ -1,16 +1,32 @@
 from pymongo import MongoClient
+from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 from config import MONGO_URI, MONGO_DB
 import json
+import os
+import csv
 
-# Connect to MongoDB
-client = MongoClient(MONGO_URI)
+# Connect to MongoDB with a reasonable timeout so the app doesn't hang
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client[MONGO_DB]
+
+def ping_db():
+    """Ping MongoDB to verify connectivity"""
+    try:
+        client.admin.command('ping')
+        return {"ok": True, "message": "MongoDB reachable"}
+    except ServerSelectionTimeoutError as e:
+        return {"ok": False, "error": f"MongoDB not reachable (timeout): {str(e)}"}
+    except PyMongoError as e:
+        return {"ok": False, "error": f"MongoDB error: {str(e)}"}
 
 def setup_sample_data():
     """
     Setup sample data for demonstration purposes.
     Creates a 'products' and 'customers' collection with sample data.
     """
+    # Ensure MongoDB is reachable before proceeding
+    client.admin.command('ping')
+
     # Clear existing collections if they exist
     db.products.drop()
     db.customers.drop()
@@ -99,3 +115,68 @@ def execute_query(query):
             
     except Exception as e:
         return {"error": str(e)}
+
+def _infer_value_type(value: str):
+    if value is None:
+        return None
+    v = value.strip()
+    if v == "":
+        return None
+    lower = v.lower()
+    if lower in ("true", "false"):
+        return lower == "true"
+    if lower in ("null", "none", "nan"):
+        return None
+    # int
+    try:
+        if v.isdigit() or (v.startswith('-') and v[1:].isdigit()):
+            return int(v)
+    except Exception:
+        pass
+    # float
+    try:
+        return float(v)
+    except Exception:
+        pass
+    return value
+
+def import_csv_folder(csv_dir: str):
+    """Import all CSV files from a folder into MongoDB.
+    Collection name is the CSV filename (without extension).
+    Returns a dict of {collection: inserted_count}.
+    """
+    try:
+        # Verify DB up
+        client.admin.command('ping')
+    except ServerSelectionTimeoutError as e:
+        return {"error": f"MongoDB not reachable: {str(e)}"}
+    except PyMongoError as e:
+        return {"error": f"MongoDB error: {str(e)}"}
+
+    if not os.path.isdir(csv_dir):
+        return {"error": f"CSV directory not found: {csv_dir}"}
+
+    results = {}
+    for fname in os.listdir(csv_dir):
+        if not fname.lower().endswith('.csv'):
+            continue
+        path = os.path.join(csv_dir, fname)
+        collection_name = os.path.splitext(fname)[0]
+
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                docs = []
+                for row in reader:
+                    doc = {k: _infer_value_type(v) for k, v in row.items()}
+                    docs.append(doc)
+                if docs:
+                    db[collection_name].drop()  # replace existing for simplicity
+                    db[collection_name].insert_many(docs)
+                    results[collection_name] = len(docs)
+                else:
+                    results[collection_name] = 0
+        except Exception as e:
+            results[collection_name] = {"error": str(e)}
+
+    return results

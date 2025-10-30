@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     const setupDbButton = document.getElementById('setup-db');
+    const importCsvButton = document.getElementById('import-csv');
     const setupMessage = document.getElementById('setup-message');
+    const importMessage = document.getElementById('import-message');
     const chatMessages = document.getElementById('chat-messages');
     const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
@@ -12,17 +14,47 @@ document.addEventListener('DOMContentLoaded', function() {
         setupMessage.style.backgroundColor = '#e0f7fa';
         
         try {
-            const response = await fetch('/api/setup', {
-                method: 'POST'
-            });
-            
+            const response = await fetch('/api/setup', { method: 'POST' });
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await response.text();
+                throw new Error(`Expected JSON, got: ${text.substring(0, 120)}...`);
+            }
             const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Setup failed');
+            }
             setupMessage.textContent = data.message;
             setupMessage.style.backgroundColor = '#e8f5e9';
         } catch (error) {
             console.error('Error:', error);
             setupMessage.textContent = 'Failed to setup database: ' + error.message;
             setupMessage.style.backgroundColor = '#ffebee';
+        }
+    });
+
+    // Import CSVs from /csv folder
+    importCsvButton.addEventListener('click', async function() {
+        importMessage.textContent = 'Importing CSV files from /csv ...';
+        importMessage.style.backgroundColor = '#e0f7fa';
+
+        try {
+            const response = await fetch('/api/import-csv', { method: 'POST' });
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await response.text();
+                throw new Error(`Expected JSON, got: ${text.substring(0, 120)}...`);
+            }
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'CSV import failed');
+            }
+            importMessage.textContent = `CSV import completed: ${JSON.stringify(data.imported)}`;
+            importMessage.style.backgroundColor = '#e8f5e9';
+        } catch (error) {
+            console.error('Error:', error);
+            importMessage.textContent = 'Failed to import CSV: ' + error.message;
+            importMessage.style.backgroundColor = '#ffebee';
         }
     });
     
@@ -41,18 +73,20 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('/api/query', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question })
             });
-            
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await response.text();
+                throw new Error(`Expected JSON, got: ${text.substring(0, 120)}...`);
+            }
             const data = await response.json();
             
             // Remove loading message
             removeMessage(loadingMsgId);
             
-            if (data.error) {
+            if (!response.ok || data.error) {
                 addMessage(`Error: ${data.error}`, 'error');
                 return;
             }
